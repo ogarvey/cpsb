@@ -1,0 +1,57 @@
+name: Release Markdown Files
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-markdown:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+          go mod download
+      
+      - name: Generate markdown files
+        run: ./make.sh markdown
+      
+      - name: Create markdown archive
+        run: |
+          cd out/markdown
+          zip -r ../../cpsb-markdown.zip .
+          cd ../..
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: cpsb-markdown.zip
+          body: |
+            ## CP-System Book - Markdown Files
+            
+            This release contains the markdown files for all chapters of the CP-System Book.
+            
+            ### Contents
+            - All book chapters in Markdown format
+            - Easy to read and process
+            
+            Extract the zip file to access individual chapter markdown files.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
