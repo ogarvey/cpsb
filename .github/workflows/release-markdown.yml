@@ -38,6 +38,7 @@ jobs:
       
       - name: Create markdown archive
         run: |
+          cp -r illu out/markdown/
           cd out/markdown
           zip -r ../../cpsb-markdown.zip .
           cd ../..
@@ -54,9 +55,10 @@ jobs:
             
             ### Contents
             - All book chapters in Markdown format
+            - All image files referenced in the chapters (illu/ directory)
             - Easy to read and process
             
-            Extract the zip file to access individual chapter markdown files.
+            Extract the zip file to access individual chapter markdown files with working image references.
           draft: false
           prerelease: false
         env:
