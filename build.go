@@ -260,7 +260,8 @@ func preprocessLatexForMarkdown(content string) string {
 }
 
 func replaceDrawMacros(content string, macro string, basePath string) string {
-	// This function handles macros like \draw{file} and adds .png extension
+	// This function handles macros like \draw{file} and adds .svg extension for markdown
+	// (SVG files are the source files in the repo, PNGs are generated during PDF build)
 	for {
 		idx := strings.Index(content, macro)
 		if idx == -1 {
@@ -284,9 +285,9 @@ func replaceDrawMacros(content string, macro string, basePath string) string {
 		}
 		filename := content[start:end-1]
 		
-		// Add .png if not already present
-		if !strings.HasSuffix(filename, ".png") {
-			filename = filename + ".png"
+		// Add .svg for markdown (source files are SVG, not PNG)
+		if !strings.HasSuffix(filename, ".svg") && !strings.HasSuffix(filename, ".png") {
+			filename = filename + ".svg"
 		}
 		
 		// Build replacement
@@ -346,9 +347,10 @@ func replaceScaledImages(content string, macro string, basePath string, addPng b
 		}
 		filename := content[fileStart:fileEnd-1]
 		
-		// Add .png if requested and not already present
-		if addPng && !strings.HasSuffix(filename, ".png") {
-			filename = filename + ".png"
+		// Add .svg for drawing macros (source files are SVG for markdown)
+		// Add .png for image macros is not needed as they already have extensions
+		if addPng && !strings.HasSuffix(filename, ".svg") && !strings.HasSuffix(filename, ".png") {
+			filename = filename + ".svg"
 		}
 		
 		// Build replacement
