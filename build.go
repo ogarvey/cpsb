@@ -12,6 +12,7 @@ import "image/jpeg"
 import "image/png"
 import "image"
 import "path"
+import "path/filepath"
 
 var inkscapeBin = "inkscape"
 var force = false
@@ -230,7 +231,10 @@ func generateMarkdown() {
 	checkExecutable("pandoc")
 	
 	outputDirName := "out/markdown"
-	os.MkdirAll(outputDirName, os.ModePerm)
+	if err := os.MkdirAll(outputDirName, os.ModePerm); err != nil {
+		fmt.Printf("Error creating output directory: %v\n", err)
+		return
+	}
 	
 	// List of chapter files to convert
 	chapters := []string{
@@ -254,8 +258,8 @@ func generateMarkdown() {
 	errorCount := 0
 	
 	for _, chapter := range chapters {
-		srcFile := cwd() + "src/" + chapter + ".tex"
-		dstFile := cwd() + outputDirName + "/" + chapter + ".md"
+		srcFile := filepath.Join(cwd(), "src", chapter+".tex")
+		dstFile := filepath.Join(cwd(), outputDirName, chapter+".md")
 		
 		// Check if source file exists
 		if _, err := os.Stat(srcFile); os.IsNotExist(err) {
@@ -284,7 +288,7 @@ func generateMarkdown() {
 			processed := strings.ReplaceAll(string(content), `\begin{CJK}{UTF8}{min}→\end{CJK}`, `→`)
 			
 			// Write to temporary file
-			tmpFile = cwd() + outputDirName + "/" + chapter + ".tmp.tex"
+			tmpFile = filepath.Join(cwd(), outputDirName, chapter+".tmp.tex")
 			if err := os.WriteFile(tmpFile, []byte(processed), 0644); err != nil {
 				fmt.Printf("  Error writing temp file: %v\n", err)
 				errorCount++
