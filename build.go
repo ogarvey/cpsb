@@ -270,6 +270,7 @@ func generateMarkdown() {
 		needsPreprocessing := (chapter == "programing")
 		
 		var pandocInput string
+		var tmpFile string
 		if needsPreprocessing {
 			// Read the file
 			content, err := os.ReadFile(srcFile)
@@ -283,16 +284,12 @@ func generateMarkdown() {
 			processed := strings.ReplaceAll(string(content), `\begin{CJK}{UTF8}{min}→\end{CJK}`, `→`)
 			
 			// Write to temporary file
-			tmpFile := cwd() + outputDirName + "/" + chapter + ".tmp.tex"
+			tmpFile = cwd() + outputDirName + "/" + chapter + ".tmp.tex"
 			if err := os.WriteFile(tmpFile, []byte(processed), 0644); err != nil {
 				fmt.Printf("  Error writing temp file: %v\n", err)
 				errorCount++
 				continue
 			}
-			// Clean up temp file after pandoc runs
-			defer func(f string) {
-				os.Remove(f)
-			}(tmpFile)
 			pandocInput = tmpFile
 		} else {
 			pandocInput = srcFile
@@ -309,6 +306,12 @@ func generateMarkdown() {
 		}
 		
 		out, err := exec.Command(bin, args...).CombinedOutput()
+		
+		// Clean up temporary file if it was created
+		if tmpFile != "" {
+			os.Remove(tmpFile)
+		}
+		
 		if err != nil {
 			fmt.Printf("  Warning: Error converting %s: %v\n", chapter, err)
 			errorCount++
