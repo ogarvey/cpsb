@@ -229,8 +229,8 @@ func preprocessLatexForMarkdown(content string) string {
 	// Replace inline CJK arrow with simple arrow
 	content = strings.ReplaceAll(content, `\begin{CJK}{UTF8}{min}→\end{CJK}`, `→`)
 	
-	// Handle drawing macros first (they need .png appended)
-	// \draw{file} -> \includegraphics{illu/d/file.png}
+	// Handle drawing macros first (they need .svg extension for markdown)
+	// \draw{file} -> \includegraphics{illu/d/file.svg}
 	content = replaceDrawMacros(content, `\draw{`, `illu/d/`)
 	content = replaceDrawMacros(content, `\nbdraw{`, `illu/d/`)
 	
@@ -348,7 +348,7 @@ func replaceScaledImages(content string, macro string, basePath string, addPng b
 		filename := content[fileStart:fileEnd-1]
 		
 		// Add .svg for drawing macros (source files are SVG for markdown)
-		// Add .png for image macros is not needed as they already have extensions
+		// Adding .png for image macros is not needed as they already have extensions
 		if addPng && !strings.HasSuffix(filename, ".svg") && !strings.HasSuffix(filename, ".png") {
 			filename = filename + ".svg"
 		}
