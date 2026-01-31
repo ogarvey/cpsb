@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to create release for (e.g., v1.0.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -40,6 +45,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           files: cpsb-markdown.zip
           body: |
             ## CP-System Book - Markdown Files
