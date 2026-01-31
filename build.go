@@ -225,6 +225,142 @@ func getMode() string {
   return mode
 }
 
+func preprocessLatexForMarkdown(content string) string {
+	// Replace inline CJK arrow with simple arrow
+	content = strings.ReplaceAll(content, `\begin{CJK}{UTF8}{min}→\end{CJK}`, `→`)
+	
+	// Handle drawing macros first (they need .png appended)
+	// \draw{file} -> \includegraphics{illu/d/file.png}
+	content = replaceDrawMacros(content, `\draw{`, `illu/d/`)
+	content = replaceDrawMacros(content, `\nbdraw{`, `illu/d/`)
+	
+	// Convert regular image macros to standard markdown-friendly format
+	// \img{file.png} -> \includegraphics{illu/img/file.png}
+	content = strings.ReplaceAll(content, `\img{`, `\includegraphics{illu/img/`)
+	
+	// \nbimg{file.png} -> \includegraphics{illu/img/file.png}
+	content = strings.ReplaceAll(content, `\nbimg{`, `\includegraphics{illu/img/`)
+	
+	// Handle scaled images: \sbimg{scale}{file} and \sbdraw{scale}{file}
+	// These are more complex as they have two arguments
+	// For now, we'll handle them with a basic approach
+	// Convert \sbimg{0.5}{file.png} to \includegraphics[width=0.5\textwidth]{illu/img/file.png}
+	content = replaceScaledImages(content, `\sbimg{`, `illu/img/`, false)
+	content = replaceScaledImages(content, `\sbdraw{`, `illu/d/`, true)
+	content = replaceScaledImages(content, `\simg{`, `illu/img/`, false)
+	content = replaceScaledImages(content, `\sdraw{`, `illu/d/`, true)
+	
+	// Replace $\times$ with the actual × character for better markdown rendering
+	content = strings.ReplaceAll(content, `$\times$`, `×`)
+	
+	// Replace other common math symbols with Unicode equivalents
+	content = strings.ReplaceAll(content, `$\mu$`, `μ`)
+	
+	return content
+}
+
+func replaceDrawMacros(content string, macro string, basePath string) string {
+	// This function handles macros like \draw{file} and adds .png extension
+	for {
+		idx := strings.Index(content, macro)
+		if idx == -1 {
+			break
+		}
+		
+		// Find the argument (filename)
+		start := idx + len(macro)
+		braceCount := 1
+		end := start
+		for end < len(content) && braceCount > 0 {
+			if content[end] == '{' {
+				braceCount++
+			} else if content[end] == '}' {
+				braceCount--
+			}
+			end++
+		}
+		if braceCount != 0 {
+			break // malformed
+		}
+		filename := content[start:end-1]
+		
+		// Add .png if not already present
+		if !strings.HasSuffix(filename, ".png") {
+			filename = filename + ".png"
+		}
+		
+		// Build replacement
+		replacement := `\includegraphics{` + basePath + filename + `}`
+		
+		// Replace in content
+		content = content[:idx] + replacement + content[end:]
+	}
+	
+	return content
+}
+
+func replaceScaledImages(content string, macro string, basePath string, addPng bool) string {
+	// This function handles macros like \sbimg{scale}{file}
+	// Convert to \includegraphics[width=scale\textwidth]{basePath/file}
+	
+	for {
+		idx := strings.Index(content, macro)
+		if idx == -1 {
+			break
+		}
+		
+		// Find the first argument (scale)
+		start := idx + len(macro)
+		braceCount := 1
+		scaleEnd := start
+		for scaleEnd < len(content) && braceCount > 0 {
+			if content[scaleEnd] == '{' {
+				braceCount++
+			} else if content[scaleEnd] == '}' {
+				braceCount--
+			}
+			scaleEnd++
+		}
+		if braceCount != 0 {
+			break // malformed
+		}
+		scale := content[start:scaleEnd-1]
+		
+		// Find the second argument (filename)
+		if scaleEnd >= len(content) || content[scaleEnd] != '{' {
+			break // malformed
+		}
+		fileStart := scaleEnd + 1
+		braceCount = 1
+		fileEnd := fileStart
+		for fileEnd < len(content) && braceCount > 0 {
+			if content[fileEnd] == '{' {
+				braceCount++
+			} else if content[fileEnd] == '}' {
+				braceCount--
+			}
+			fileEnd++
+		}
+		if braceCount != 0 {
+			break // malformed
+		}
+		filename := content[fileStart:fileEnd-1]
+		
+		// Add .png if requested and not already present
+		if addPng && !strings.HasSuffix(filename, ".png") {
+			filename = filename + ".png"
+		}
+		
+		// Build replacement
+		replacement := `\includegraphics[width=` + scale + `\textwidth]{` + basePath + filename + `}`
+		
+		// Replace in content
+		content = content[:idx] + replacement + content[fileEnd:]
+	}
+	
+	return content
+}
+
 func generateMarkdown() {
 	fmt.Println("Generating markdown files for each chapter...")
 	
@@ -269,34 +405,23 @@ func generateMarkdown() {
 		
 		fmt.Printf("Converting %s -> %s\n", srcFile, dstFile)
 		
-		// For files with CJK inline commands, preprocess them
-		// This handles the arrow characters in subsection titles
-		needsPreprocessing := (chapter == "programing")
+		// Read the file
+		content, err := os.ReadFile(srcFile)
+		if err != nil {
+			fmt.Printf("  Error reading %s: %v\n", chapter, err)
+			errorCount++
+			continue
+		}
 		
-		var pandocInput string
-		var tmpFile string
-		if needsPreprocessing {
-			// Read the file
-			content, err := os.ReadFile(srcFile)
-			if err != nil {
-				fmt.Printf("  Error reading %s: %v\n", chapter, err)
-				errorCount++
-				continue
-			}
-			
-			// Replace inline CJK arrow with simple arrow
-			processed := strings.ReplaceAll(string(content), `\begin{CJK}{UTF8}{min}→\end{CJK}`, `→`)
-			
-			// Write to temporary file
-			tmpFile = filepath.Join(cwd(), outputDirName, chapter+".tmp.tex")
-			if err := os.WriteFile(tmpFile, []byte(processed), 0644); err != nil {
-				fmt.Printf("  Error writing temp file: %v\n", err)
-				errorCount++
-				continue
-			}
-			pandocInput = tmpFile
-		} else {
-			pandocInput = srcFile
+		// Preprocess LaTeX content to handle custom macros and formatting
+		processed := preprocessLatexForMarkdown(string(content))
+		
+		// Write to temporary file
+		tmpFile := filepath.Join(cwd(), outputDirName, chapter+".tmp.tex")
+		if err := os.WriteFile(tmpFile, []byte(processed), 0644); err != nil {
+			fmt.Printf("  Error writing temp file: %v\n", err)
+			errorCount++
+			continue
 		}
 		
 		// Use pandoc to convert LaTeX to Markdown
@@ -306,15 +431,13 @@ func generateMarkdown() {
 			"-t", "markdown",
 			"--wrap=preserve",
 			"-o", dstFile,
-			pandocInput,
+			tmpFile,
 		}
 		
 		out, err := exec.Command(bin, args...).CombinedOutput()
 		
-		// Clean up temporary file if it was created
-		if tmpFile != "" {
-			os.Remove(tmpFile)
-		}
+		// Clean up temporary file
+		os.Remove(tmpFile)
 		
 		if err != nil {
 			fmt.Printf("  Warning: Error converting %s: %v\n", chapter, err)
