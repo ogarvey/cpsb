@@ -65,6 +65,36 @@ Debug is the default mode.
 ./make.sh debug|release -f
 ```
 
+## How to generate Markdown documents
+
+Instead of building a single PDF, you can generate separate Markdown documents for each chapter.
+
+### Prerequisites for Markdown generation
+
+- Install golang (https://golang.org/doc/install)
+- Install pandoc
+```
+sudo apt install -y pandoc  # Linux
+brew install pandoc         # MacOS
+```
+
+### Generate Markdown
+
+```
+./make.sh markdown
+```
+
+This will create individual Markdown files for each chapter in the `out/markdown/` directory:
+- `introduction.md`
+- `hardware.md`
+- `programing.md`
+- `gfx.md`
+- `prog_z80.md`
+- `prog_68000.md`
+- And more...
+
+Note: Markdown generation does not require Inkscape or TexLive.
+
 ### Poor typesetting
 
 If upon compilation the typesetting is "off" with blank pages, it may be that the wrong version of TexLive is used to compile. Run the following command and make sure you are using version 2023.

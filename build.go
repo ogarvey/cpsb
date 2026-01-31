@@ -12,6 +12,7 @@ import "image/jpeg"
 import "image/png"
 import "image"
 import "path"
+import "path/filepath"
 
 var inkscapeBin = "inkscape"
 var force = false
@@ -224,9 +225,126 @@ func getMode() string {
   return mode
 }
 
+func generateMarkdown() {
+	fmt.Println("Generating markdown files for each chapter...")
+	
+	checkExecutable("pandoc")
+	
+	outputDirName := "out/markdown"
+	if err := os.MkdirAll(outputDirName, os.ModePerm); err != nil {
+		fmt.Printf("Error creating output directory: %v\n", err)
+		return
+	}
+	
+	// List of chapter files to convert
+	chapters := []string{
+		"forewords",
+		"aknowledgments",
+		"bug_reports",
+		"cheat_sheet",
+		"introduction",
+		"hardware",
+		"programing",
+		"gfx",
+		"prog_z80",
+		"prog_68000",
+		"people",
+		"epilogue",
+		"appendix",
+		"bib",
+	}
+	
+	successCount := 0
+	errorCount := 0
+	
+	for _, chapter := range chapters {
+		srcFile := filepath.Join(cwd(), "src", chapter+".tex")
+		dstFile := filepath.Join(cwd(), outputDirName, chapter+".md")
+		
+		// Check if source file exists
+		if _, err := os.Stat(srcFile); os.IsNotExist(err) {
+			fmt.Printf("Skipping %s (file not found)\n", srcFile)
+			continue
+		}
+		
+		fmt.Printf("Converting %s -> %s\n", srcFile, dstFile)
+		
+		// For files with CJK inline commands, preprocess them
+		// This handles the arrow characters in subsection titles
+		needsPreprocessing := (chapter == "programing")
+		
+		var pandocInput string
+		var tmpFile string
+		if needsPreprocessing {
+			// Read the file
+			content, err := os.ReadFile(srcFile)
+			if err != nil {
+				fmt.Printf("  Error reading %s: %v\n", chapter, err)
+				errorCount++
+				continue
+			}
+			
+			// Replace inline CJK arrow with simple arrow
+			processed := strings.ReplaceAll(string(content), `\begin{CJK}{UTF8}{min}→\end{CJK}`, `→`)
+			
+			// Write to temporary file
+			tmpFile = filepath.Join(cwd(), outputDirName, chapter+".tmp.tex")
+			if err := os.WriteFile(tmpFile, []byte(processed), 0644); err != nil {
+				fmt.Printf("  Error writing temp file: %v\n", err)
+				errorCount++
+				continue
+			}
+			pandocInput = tmpFile
+		} else {
+			pandocInput = srcFile
+		}
+		
+		// Use pandoc to convert LaTeX to Markdown
+		bin := "pandoc"
+		args := []string{
+			"-f", "latex",
+			"-t", "markdown",
+			"--wrap=preserve",
+			"-o", dstFile,
+			pandocInput,
+		}
+		
+		out, err := exec.Command(bin, args...).CombinedOutput()
+		
+		// Clean up temporary file if it was created
+		if tmpFile != "" {
+			os.Remove(tmpFile)
+		}
+		
+		if err != nil {
+			fmt.Printf("  Warning: Error converting %s: %v\n", chapter, err)
+			errorCount++
+			// Try to save what was converted
+			if len(out) > 0 {
+				fmt.Printf("  Partial output may have been saved\n")
+			}
+		} else {
+			successCount++
+		}
+	}
+	
+	fmt.Printf("\n✓ Markdown generation complete!\n")
+	fmt.Printf("  Successfully converted: %d files\n", successCount)
+	if errorCount > 0 {
+		fmt.Printf("  Warnings/Errors: %d files\n", errorCount)
+	}
+	fmt.Printf("  Output directory: %s/\n", outputDirName)
+}
+
 func main() {
 	mode = getMode()
 	fmt.Println("Building in", mode, "mode...")
+
+	// Handle markdown mode early (doesn't need inkscape)
+	if mode == "markdown" {
+		generateMarkdown()
+		return
+	}
 
 	checkExecutable(inkscapeBin)
 	
@@ -236,8 +354,8 @@ func main() {
 		force = true
 	}
 
-	if mode != "debug" && mode != "release" && mode != "print" {
-		fmt.Println("Mode must be either 'debug' or 'release' or 'print'.")
+	if mode != "debug" && mode != "release" && mode != "print" && mode != "markdown" {
+		fmt.Println("Mode must be either 'debug', 'release', 'print', or 'markdown'.")
 		return
 	}
 
