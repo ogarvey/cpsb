@@ -272,7 +272,7 @@ func generateMarkdown() {
 		var pandocInput string
 		if needsPreprocessing {
 			// Read the file
-			content, err := ioutil.ReadFile(srcFile)
+			content, err := os.ReadFile(srcFile)
 			if err != nil {
 				fmt.Printf("  Error reading %s: %v\n", chapter, err)
 				errorCount++
@@ -284,12 +284,15 @@ func generateMarkdown() {
 			
 			// Write to temporary file
 			tmpFile := cwd() + outputDirName + "/" + chapter + ".tmp.tex"
-			if err := ioutil.WriteFile(tmpFile, []byte(processed), 0644); err != nil {
+			if err := os.WriteFile(tmpFile, []byte(processed), 0644); err != nil {
 				fmt.Printf("  Error writing temp file: %v\n", err)
 				errorCount++
 				continue
 			}
-			defer os.Remove(tmpFile)
+			// Clean up temp file after pandoc runs
+			defer func(f string) {
+				os.Remove(f)
+			}(tmpFile)
 			pandocInput = tmpFile
 		} else {
 			pandocInput = srcFile
